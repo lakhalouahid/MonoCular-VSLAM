@@ -15,9 +15,10 @@ def main():
             break
         frame = cv.resize(frame, dsize=(w, h))
         kps, des = orb.detectAndCompute(frame, None)
+        gray = cv.cvtColor(frame,cv.COLOR_BGR2GRAY)
+        kps = cv.goodFeaturesToTrack(gray, 2000, 0.005, 8)
         for kp in kps:
-            x, y = map(lambda x: int(round(x)), kp.pt)
-            cv.circle(frame, (x, y), radius=3, color=(0, 255, 0))
+            cv.circle(frame, (int(kp[0, 0]), int(kp[0, 1])), radius=3, color=(0, 255, 0))
         cv.imshow('frame', frame)
         if cv.waitKey(20) == ord('q'):
             break
