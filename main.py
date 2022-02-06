@@ -8,11 +8,18 @@ from skimage.transform import FundamentalMatrixTransform
 w, h = 1920//2, 1080//2
 
 
+def add_ones(x):
+    return np.concatenate([x, np.ones((x.shape[0], 1))], axis=1)
+
 class FeatureExtractor(object):
-    def __init__(self):
+    def __init__(self, f=1):
+        global w, h
         self.n_features = 2000
         self.orb = cv.ORB_create()
         self.bf = cv.BFMatcher(cv.NORM_HAMMING)
+        self.K = np.array([[f, 0, w], [0, f, h], [0, 0, 1]])
+        self.Kin = np.linalg.inv(self.K)
+        print(self.Kin)
         self.last = None
 
     def extract(self, frame):
@@ -31,16 +38,27 @@ class FeatureExtractor(object):
                     ret.append((kps[m.queryIdx].pt, self.last['kps'][m.trainIdx].pt))
         if len(ret) > 0:
             ret = np.array(ret)
+            # normalize the coordinates
+            self.normalize(ret)
             model, inliers = ransac((ret[:, 0], ret[:, 1]),
                                     FundamentalMatrixTransform,
                                     min_samples=20,
                                     residual_threshold=1,
                                     max_trials=100)
             ret = ret[inliers]
+            self.denormalize(ret)
 
         # return
         self.last = {'kps': kps, 'des': des}
         return ret
+
+    def denormalize(self, ret):
+        ret[:, 0, :] = np.dot(self.K, add_ones(ret[:, 0, :]).T).T[:, :2]
+        ret[:, 1, :] = np.dot(self.K, add_ones(ret[:, 1, :]).T).T[:, :2]
+
+    def normalize(self, ret):
+        ret[:, 0, :] = np.dot(self.Kin, add_ones(ret[:, 0, :]).T).T[:, :2]
+        ret[:, 1, :] = np.dot(self.Kin, add_ones(ret[:, 1, :]).T).T[:, :2]
 
 
 def main():
@@ -57,8 +75,8 @@ def main():
             for pt1, pt2 in matches:
                 x1, y1 = map(lambda x: int(round(x)), pt1)
                 x2, y2 = map(lambda x: int(round(x)), pt2)
-                #cv.circle(frame, (x1, y1), radius=3, color=(0, 255, 0))
-                #cv.circle(frame, (x2, y2), radius=3, color=(0, 255, 0))
+                cv.circle(frame, (x1, y1), radius=3, color=(0, 255, 0))
+                cv.circle(frame, (x2, y2), radius=3, color=(0, 255, 0))
                 cv.line(frame, (x1, y1), (x2, y2), color=(255, 0, 0), thickness=1)
         cv.imshow('frame', frame)
         if cv.waitKey(33) == ord('q'):
